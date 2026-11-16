@@ -177,14 +177,19 @@ await page.mouse.click(720, 640);
 await page.waitForTimeout(250);
 const beforePush = await snapAngle('door');
 await page.keyboard.down('KeyW');
-await page.waitForTimeout(1200);
+// Wait until the leaning player has actually turned the door: on slow headless
+// renderers sim time can lag wall time, so a fixed sleep is not meaningful.
+const leansOnDoor = await waitFor(() => {
+  const h = window.__drill.assembly.get('door');
+  return h.angle * 180 / Math.PI > 3 && h.contact.others.includes('player');
+}, 20000, 150);
 // Sample while the player is still leaning on the door: after release the panel
 // keeps swinging and may end up resting on the crate instead.
 const duringPush = await snapAngle('door');
 await page.keyboard.up('KeyW');
 await page.waitForTimeout(700);
 const pushed = await snapAngle('door');
-check('walking into the door turns it through the joint', duringPush.angle - beforePush.angle > 3,
+check('walking into the door turns it through the joint', leansOnDoor && duringPush.angle - beforePush.angle > 3,
   `${beforePush.angle.toFixed(1)}° → ${duringPush.angle.toFixed(1)}°`);
 check('player push keeps the anchor error sub-mm', pushed.anchorErr < 0.001, `${(pushed.anchorErr * 1000).toFixed(3)} mm`);
 check('door reports the player in its contact list', duringPush.contact.includes('player'), duringPush.contact.join(','));
@@ -221,6 +226,80 @@ const paused = await page.evaluate(() => window.__drill.ui.paused);
 check('pause stops the simulation loop', paused === true);
 await page.click('.toggle-row .toggle:nth-of-type(2)'); // resume
 await page.waitForTimeout(200);
+
+// --- 7. committed scene assets load into the drill -------------------------
+const sceneOptions = await page.evaluate(() =>
+  [...document.querySelectorAll('#scene-select option')].map((o) => o.value)
+);
+check('Scene card lists the committed asset', sceneOptions.includes('dock-gate-arm'), sceneOptions.join(','));
+
+await page.selectOption('#scene-select', 'dock-gate-arm');
+await page.click('#scene-load');
+const loaded = await waitFor(() => window.__drill?.scene?.asset?.id === 'dock-gate-arm', 15000);
+check('scene asset loads through the Scene card', loaded);
+const dockBoot = await page.evaluate(() => ({
+  hinges: window.__drill.assembly.hinges.map((h) => h.id),
+  rows: document.querySelectorAll('.results-table tbody tr').length,
+  status: document.querySelector('#scene-status').textContent,
+  selectValue: document.querySelector('#scene-select').value,
+}));
+check('loaded scene exposes its hinges to the panel', dockBoot.hinges.join(',') === 'gate,shoulder,elbow', dockBoot.hinges.join(','));
+check('results table tracks the loaded joints', dockBoot.rows === 3, `rows=${dockBoot.rows}`);
+check('scene status describes the saved script', /script: 10 ops/.test(dockBoot.status), dockBoot.status);
+check('scene selector reflects the loaded scene', dockBoot.selectValue === 'dock-gate-arm', dockBoot.selectValue);
+
+// The command slider drives the loaded device's real kernel (reversed axis).
+await setSlider('gate', 40);
+const gateOk = await waitFor(() => {
+  const h = window.__drill.assembly.get('gate');
+  return Math.abs(h.angle * 180 / Math.PI - 40) < 3;
+}, 10000);
+const gate = await snapAngle('gate');
+check('gate slider command reaches target on the reversed axis', gateOk, `angle=${gate.angle.toFixed(2)}°, target=${gate.target.toFixed(1)}°`);
+check('loaded gate keeps sub-mm axle error while driven', gate.anchorErr < 0.001, `${(gate.anchorErr * 1000).toFixed(3)} mm`);
+await page.screenshot({ path: '/tmp/drill-7-dock.png' });
+
+// Replaying the saved script must drive the same kernel: the gate is stopped
+// by the bollard before its 96° limit, exactly as the committed trace records.
+await page.click('#scene-replay');
+const replayBlocked = await waitFor(() => {
+  const h = window.__drill.assembly.get('gate');
+  if (!h.blocked || !h.blocked.by.includes('bollard')) return false;
+  // Capture the panel evidence at the moment the kernel reports the blockage;
+  // the hold/probe state machine can clear the flag again between polls.
+  window.__replayEvidence = {
+    angle: h.angle * 180 / Math.PI,
+    badge: document.querySelector('.status-badge').textContent,
+    row: ([...document.querySelectorAll('.results-table tbody tr')]
+      .find((r) => r.textContent.includes('Dock gate'))?.textContent ?? '').replace(/\s+/g, ' ').trim(),
+  };
+  return true;
+}, 25000);
+const evidence = await page.evaluate(() => window.__replayEvidence ?? { angle: 0, badge: '', row: '' });
+check('script replay drives the kernel until the bollard blocks the gate', replayBlocked && evidence.angle < 96,
+  `angle=${evidence.angle.toFixed(2)}°`);
+check('panel surfaces the replayed blockage', /CONTACT LIMITING MOTION/.test(evidence.badge), evidence.badge);
+check('results table shows the replayed blocked state and axle error', /blocked: bollard/.test(evidence.row) && /mm/.test(evidence.row), evidence.row);
+await page.screenshot({ path: '/tmp/drill-8-replay.png' });
+
+// Limit edits on the loaded device go straight into the kernel.
+await page.evaluate(() => window.__drill.ui.setActive('gate'));
+await page.fill('.limit-row input:nth-of-type(2)', '50');
+await page.waitForTimeout(300);
+const gateLimits = await snapAngle('gate');
+check('limit edit applies to the loaded device', Math.abs(gateLimits.max - 50) < 0.2, `max=${gateLimits.max.toFixed(1)}°`);
+
+// Export reads the live kernel state back into an editable asset.
+const [download] = await Promise.all([
+  page.waitForEvent('download', { timeout: 8000 }),
+  page.click('#scene-export'),
+]);
+check('export button downloads the edited asset', /dock-gate-arm\.json$/.test(download.suggestedFilename()), download.suggestedFilename());
+const exported = await page.evaluate(() => window.__drillHost.exportScene());
+const exportedGate = exported.hinges.find((h) => h.id === 'gate');
+check('exported asset carries the live limits and source metadata',
+  exportedGate.maxDeg === 50 && exportedGate.minDeg === -6 && exported.meta.source === 'scripts/build-assets.mjs',
+  `gate limits ${exportedGate.minDeg}..${exportedGate.maxDeg}, source=${exported.meta.source}`);
 
 check('no console errors after interaction', errors.length === 0, errors.slice(0, 3).join(' | '));
 

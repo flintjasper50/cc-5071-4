@@ -18,6 +18,8 @@ Optional query parameters set the initial solver budget:
 
 - `?dt=120&iters=6` — 120 Hz step (also `60`, `240`) and 6 solver iterations
   (also `2`, `4`, `8`, `12`, `16`).
+- `?scene=dock-gate-arm` — boot straight into a committed scene asset instead
+  of the built-in drill.
 - Example: <http://127.0.0.1:5173/?dt=240&iters=12>
 
 You can also change both from the **Solver** card while it runs.
@@ -28,9 +30,12 @@ You can also change both from the **Solver** card while it runs.
 | --- | --- |
 | Drive a joint | Joint card slider, or drag the joint's ring gizmo in the viewport |
 | Edit limits | **Interact** card → pick a hinge → `limits min → max` number fields (degrees) |
+| Load a scene asset | **Scene** card → pick a scene → **load** |
+| Replay a scene's saved script | **Scene** card → **replay script** |
+| Export the live scene as an asset | **Scene** card → **export asset** (downloads JSON) |
 | Move the player | `W A S D` / arrow keys, `Shift` to sprint; click the viewport first so keys focus it |
 | Reset player | `R` |
-| Pick hinge for limit editing | `1` / `2` / `3`, or the Interact segmented buttons |
+| Pick hinge for limit editing | `1`…`9` (joint order), or the Interact segmented buttons |
 | Pause / resume | `Space` or the **pause** button |
 | Slow motion | **slow motion** button (¼ speed) |
 | Cameras | Overview / Door / Arm / Player chips |
@@ -55,6 +60,48 @@ and the Results table names what it hit.
   / `blocked: <thing>`). The footer reports measured step cost as a percentage
   of the current step budget.
 
+## Scene assets
+
+Committed scenes live in `public/assets/scenes/` and load into the drill
+viewport as-is. The graphical entry is the **Scene** card in the UI (top of the
+panel): **load** swaps the running scene, **replay script** re-issues the
+scene's saved interaction script against the live kernel, and **export asset**
+downloads the current geometry, limits, targets and solver settings as an
+editable `hinge-scene/1` JSON file.
+
+`dock-gate-arm` ("Loading dock: reversed gate + ceiling arm") is the authored
+sample: a gate on a **reversed** vertical axis `[0,-1,0]` with limits
+`[-6°, 96°]` that a bollard blocks at ≈61°, plus a ceiling-mounted two-link arm
+whose shoulder and elbow swing to their negative limit angles. The asset JSON
+stores the geometry, the interaction input script (`setTarget` / `setLimits`
+ops with sim times — they only command kernel motors and limits, never
+transforms), and a `meta` block recording the authoring source and parameters.
+
+Each scene ships with its original record (`*.trace.json`): per-step joint
+diagnostics captured when the asset was authored — angles, targets, anchor/axis
+/limit errors, contacts, blockages and limit hits.
+
+### Authoring and verification (auxiliary CLI)
+
+The CLI only assists the assets; the drill UI above is the product.
+
+```bash
+npm run asset:build    # author scenes from scripts/dock-asset.mjs, run the
+                       # saved script headlessly, and write the assets plus
+                       # their traces (refuses to write if the reconstruction
+                       # does not conform or the evidence is missing)
+npm run asset:verify   # rebuild and replay every committed scene in a clean
+                       # temporary directory, comparing fresh joint errors and
+                       # limit hits against the committed original records
+```
+
+`npm run asset:verify` copies `src/` and `public/assets/` into a fresh temp
+directory and runs the check there, so nothing in the working tree can
+influence the result; it exits non-zero on any mismatch and keeps the
+directory (with `verification-report.json`) for inspection.
+`tests/assets.test.mjs` covers the same pipeline in-place, including detection
+of a tampered record.
+
 ## How it is built
 
 ```
@@ -62,11 +109,19 @@ src/core/math.js      vectors, quaternions, frame construction, twist extraction
 src/core/angles.js    continuous angle tracker and limit projection
 src/core/hinges.js    Hinge + HingeAssembly (the kernel: joints, diagnostics,
                       gravity feed-forward, contact hold state machine)
-src/scene/build.js    the drill scene; one collider per visual, all labelled
+src/scene/build.js    the built-in drill scene; one collider per visual, all labelled
+src/scene/hinge-config.js  shared hinge frame math (world pivot/axis → joint locals)
+src/scene/player.js   the player rig used by every scene
+src/scene/loader.js   hinge-scene/1 assets: validate, rebuild, conformance check, export
+src/scene/script.js   interaction scripts: headless replay, trace summaries,
+                      record comparison, live ScriptPlayer
 src/render/view.js    meshes mirror collider transforms; hinge/limit gizmos
-src/ui/panel.js       controls → kernel API, kernel state → readouts
+src/ui/panel.js       controls → kernel API, kernel state → readouts; Scene card
 src/ui/interaction.js screen-space gizmo drag, body drag, keyboard player
-src/main.js           boot, fixed-step loop, automation surface
+src/main.js           boot, scene mount/teardown, fixed-step loop, automation surface
+scripts/dock-asset.mjs     the dock scene definition (single source of its parameters)
+scripts/build-assets.mjs   authoring CLI: rebuild → conform → record → write assets
+scripts/verify-assets.mjs  clean-directory verification against the committed records
 ```
 
 Design points that matter:
@@ -90,7 +145,7 @@ Design points that matter:
 ## Tests
 
 ```bash
-npm test          # kernel, angle and solver unit tests (Node)
+npm test          # kernel, angle, solver and scene-asset unit tests (Node)
 npm run sweep     # dt × iterations budget sweep with measured error and cost
 npm run build     # production build
 ```
@@ -127,7 +182,9 @@ npm run test:e2e
 
 `tests/browser.mjs` drives the real page: boots, reads kernel state, drags a
 gizmo, edits limits, drives the elbow into the stop pad, pushes the door with
-the player, and switches dt/iterations while checking the reported cost.
+the player, switches dt/iterations while checking the reported cost, then loads
+the committed dock scene through the Scene card, drives its gate, replays its
+script into the bollard block, edits its limits and exports the edited asset.
 
 If Chromium cannot find system libraries in a headless container, extract the
 missing Debian packages into a directory and pass
@@ -143,3 +200,8 @@ assembly.setTarget('elbow', 110 * Math.PI / 180);
 assembly.runSteps(900, 1 / 120);   // returns elapsed ms
 assembly.get('elbow').contact.others;  // → ['stop pad']
 ```
+
+`window.__drillHost` manages scenes: `listScenes` is not needed — the host
+exposes `scenes`, `currentId()`, `loadScene(id)`, `replayScript()`,
+`scriptStatus()` and `exportScene()`, the same calls the Scene card buttons
+use.

@@ -2,6 +2,8 @@ import { clamp } from '../core/math.js';
 
 const D = 180 / Math.PI;
 
+const PALETTE = ['#5ad1a5', '#7fb0ff', '#ffc861', '#ff8fb5', '#9fe870'];
+
 /**
  * The contact-drill viewport UI.
  *
@@ -10,22 +12,33 @@ const D = 180 / Math.PI;
  * Nothing here integrates motion, clamps angles, or decides whether a joint is
  * blocked: the kernel owns that, and blocked/limit/contact results are mirrored
  * back into the panel.
+ *
+ * The Scene card is the graphical entry for scene assets: it loads a committed
+ * asset into the viewport, replays its saved interaction script against the
+ * live kernel, and exports the current limits/targets as an editable asset.
  */
 export class DrillUI {
-  constructor(root, scene) {
+  constructor(root, scene, host = null) {
     this.root = root;
     this.scene = scene;
+    this.host = host;
     this.view = null;
     this.assembly = scene.assembly;
-    this.selected = new Set(['door', 'shoulder', 'elbow']);
+    this.selected = new Set(this.assembly.hinges.map((h) => h.id));
+    this.activeTarget = this.assembly.hinges[0]?.id ?? null;
     this.paused = false;
     this.showHelpers = true;
     this.showContacts = true;
     this.slowMotion = false;
     this.lastResults = new Map();
+    this._sceneError = null;
     this._build();
     this._bindKeys();
     this.refreshStatic();
+  }
+
+  dispose() {
+    window.removeEventListener('keydown', this._keyHandler);
   }
 
   _el(tag, className, text) {
@@ -77,22 +90,94 @@ export class DrillUI {
     overlay.appendChild(camRow);
 
     const legend = this._el('div', 'legend');
-    legend.innerHTML = `
-      <span><i class="dot door"></i>door hinge</span>
-      <span><i class="dot shoulder"></i>shoulder</span>
-      <span><i class="dot elbow"></i>elbow</span>
-      <span><i class="dot limit"></i>limit arc</span>
-      <span><i class="dot contact"></i>contact point</span>`;
+    this.assembly.hinges.forEach((h, i) => {
+      const s = this._el('span');
+      const dot = this._el('i', 'dot');
+      dot.style.background = PALETTE[i % PALETTE.length];
+      s.append(dot, document.createTextNode(h.label.toLowerCase()));
+      legend.appendChild(s);
+    });
+    const limitEntry = this._el('span');
+    limitEntry.append(this._el('i', 'dot limit'), document.createTextNode('limit arc'));
+    const contactEntry = this._el('span');
+    contactEntry.append(this._el('i', 'dot contact'), document.createTextNode('contact point'));
+    legend.append(limitEntry, contactEntry);
     overlay.appendChild(legend);
 
     // Control panel ------------------------------------------------------
     const panel = this._el('aside', 'panel');
     main.appendChild(panel);
 
+    if (this.host) panel.appendChild(this._sectionScene());
     panel.appendChild(this._sectionJoints());
     panel.appendChild(this._sectionSolver());
     panel.appendChild(this._sectionInteract());
     panel.appendChild(this._sectionResults());
+  }
+
+  _sectionScene() {
+    const wrap = this._el('section', 'card scene-card');
+    wrap.appendChild(this._el('h2', null, 'Scene'));
+
+    const row1 = this._el('div', 'scene-row');
+    this.sceneSelect = document.createElement('select');
+    this.sceneSelect.id = 'scene-select';
+    const builtin = document.createElement('option');
+    builtin.value = 'builtin';
+    builtin.textContent = 'built-in drill';
+    this.sceneSelect.appendChild(builtin);
+    for (const s of this.host.scenes) {
+      const o = document.createElement('option');
+      o.value = s.id;
+      o.textContent = s.title ?? s.id;
+      this.sceneSelect.appendChild(o);
+    }
+    this.sceneSelect.value = this.host.currentId();
+    this.sceneSelect.addEventListener('change', () => {
+      this._sceneError = null;
+    });
+    this.loadBtn = this._el('button', 'scene-btn', 'load');
+    this.loadBtn.id = 'scene-load';
+    this.loadBtn.addEventListener('click', async () => {
+      const id = this.sceneSelect.value;
+      this.loadBtn.disabled = true;
+      this._sceneError = null;
+      try {
+        // Replaces this whole UI with one bound to the new scene.
+        await this.host.loadScene(id);
+      } catch (err) {
+        this.loadBtn.disabled = false;
+        this._sceneError = `load failed: ${err?.message ?? err}`;
+      }
+    });
+    row1.append(this.sceneSelect, this.loadBtn);
+    wrap.appendChild(row1);
+
+    const row2 = this._el('div', 'scene-row');
+    this.replayBtn = this._el('button', 'scene-btn', 'replay script');
+    this.replayBtn.id = 'scene-replay';
+    this.replayBtn.addEventListener('click', () => this.host.replayScript());
+    this.exportBtn = this._el('button', 'scene-btn', 'export asset');
+    this.exportBtn.id = 'scene-export';
+    this.exportBtn.addEventListener('click', () => this._exportAsset());
+    row2.append(this.replayBtn, this.exportBtn);
+    wrap.appendChild(row2);
+
+    this.sceneStatus = this._el('p', 'hint scene-status', '');
+    this.sceneStatus.id = 'scene-status';
+    wrap.appendChild(this.sceneStatus);
+    return wrap;
+  }
+
+  _exportAsset() {
+    const asset = this.host.exportScene();
+    if (!asset) return;
+    const blob = new Blob([JSON.stringify(asset, null, 2) + '\n'], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${asset.id}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
 
   _sectionJoints() {
@@ -212,7 +297,6 @@ export class DrillUI {
     wrap.appendChild(info);
 
     const targets = this._el('div', 'seg');
-    this.activeTarget = 'door';
     this.targetButtons = new Map();
     for (const h of this.assembly.hinges) {
       const b = this._el('button', 'seg-btn', h.label);
@@ -293,6 +377,7 @@ export class DrillUI {
   }
 
   setActive(id) {
+    if (!this.assembly.get(id)) return;
     this.activeTarget = id;
     for (const [hid, b] of this.targetButtons) b.classList.toggle('on', hid === id);
     this.refreshStatic();
@@ -323,8 +408,11 @@ export class DrillUI {
   _bindKeys() {
     this._keyHandler = (e) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
-      const map = { Digit1: 'door', Digit2: 'shoulder', Digit3: 'elbow' };
-      if (map[e.code]) this.setActive(map[e.code]);
+      const index = /^Digit([1-9])$/.exec(e.code)?.[1];
+      if (index != null) {
+        const h = this.assembly.hinges[Number(index) - 1];
+        if (h) this.setActive(h.id);
+      }
       if (e.code === 'Space') {
         e.preventDefault();
         this.paused = !this.paused;
@@ -345,6 +433,21 @@ export class DrillUI {
     const simBudgetMs = dt * this.timeScale * 1000;
     this.costEl.textContent = `step cost ${costMs.toFixed(2)} ms · ${((costMs / simBudgetMs) * 100).toFixed(1)}% budget`;
     this.selectedEl.textContent = `${this.selected.size} joints selected`;
+
+    if (this.host) {
+      const st = this.host.scriptStatus();
+      this.replayBtn.disabled = !st || st.active;
+      this.exportBtn.disabled = !this.scene.asset;
+      if (this._sceneError) {
+        this.sceneStatus.textContent = this._sceneError;
+      } else if (st?.active) {
+        this.sceneStatus.textContent = `replaying script ${st.t.toFixed(1)}s / ${st.duration}s · op ${st.cursor}/${st.ops}`;
+      } else if (st) {
+        this.sceneStatus.textContent = `script: ${st.ops} ops over ${st.duration}s`;
+      } else {
+        this.sceneStatus.textContent = this.scene.asset ? 'no saved script' : 'built-in scene';
+      }
+    }
 
     const rows = [];
     let anyBlocked = null;

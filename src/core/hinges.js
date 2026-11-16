@@ -267,20 +267,22 @@ export class HingeAssembly {
    * Collects contacts between each hinge's bodies and the rest of the scene.
    * Rapier emits predictive contacts slightly before shapes touch, so the
    * threshold is above the default prediction distance to catch blockages early.
+   *
+   * Every (own collider, other collider) pair is examined: a partner is never
+   * skipped just because another collider on the same body is paired with it —
+   * that pairing can be contact-free while a secondary collider (a handle, a
+   * tool tip) carries the actual contact.
    */
   sampleContacts(maxDistance = 0.03) {
     for (const h of this.hinges) {
       const info = { count: 0, maxPenetration: 0, minDistance: Infinity, others: [], points: [] };
-      const seen = new Set();
       const bodies = [h.bodyA, h.bodyB];
       for (const body of bodies) {
         for (let ci = 0; ci < body.numColliders(); ci++) {
           const collider = body.collider(ci);
           this.world.contactPairsWith(collider, (other) => {
-            if (seen.has(other.handle)) return;
             const parent = other.parent();
             if (parent && (parent.handle === h.bodyA.handle || parent.handle === h.bodyB.handle)) return;
-            seen.add(other.handle);
             this.world.contactPair(collider, other, (manifold) => {
               let best = Infinity;
               const n = manifold.numContacts();

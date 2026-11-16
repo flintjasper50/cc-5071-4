@@ -299,6 +299,62 @@ body {
 .feed.blocked { color: var(--bad); }
 .feed.limited { color: var(--warn); }
 
+/* ---- scene assets ------------------------------------------------------- */
+.scene-row {
+  display: flex;
+  gap: 7px;
+  margin-top: 7px;
+}
+
+.scene-row:first-of-type {
+  margin-top: 0;
+}
+
+.scene-row select {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: #101720;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 5px 6px;
+  font-size: 12px;
+}
+
+.scene-btn {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: #101720;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.scene-row .scene-btn {
+  flex: 1 1 0;
+}
+
+.scene-row select + .scene-btn {
+  flex: 0 0 auto;
+}
+
+.scene-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: #3a4a5c;
+}
+
+.scene-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.scene-status {
+  margin: 8px 0 0;
+  min-height: 15px;
+}
+
 /* ---- solver ----------------------------------------------------------- */
 .solver-grid {
   display: grid;

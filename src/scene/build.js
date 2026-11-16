@@ -1,44 +1,16 @@
 import {
   qFromAxisAngle,
-  qFromXAxis,
-  qInv,
   qMul,
   qRotate,
   v3,
   vAdd,
   vScale,
-  vSub,
 } from '../core/math.js';
 import { HingeAssembly } from '../core/hinges.js';
+import { hingeConfig } from './hinge-config.js';
+import { createPlayerRig } from './player.js';
 
 const D = Math.PI / 180;
-
-function hingeConfig({ id, label, group, parent, child, pivot, axis, min, max, target, ...rest }) {
-  const ra = parent.rotation();
-  const rb = child.rotation();
-  const localAnchorA = qRotate(qInv(ra), vSub(pivot, parent.translation()));
-  const localAnchorB = qRotate(qInv(rb), vSub(pivot, child.translation()));
-  // Rapier's revolute joint frees the X axis of each local frame. Frames are built
-  // from the world hinge axis so rendering, angle readout and limits share one axis.
-  const frameWorld = qFromXAxis(axis);
-  return {
-    id,
-    label,
-    group,
-    bodyA: parent,
-    bodyB: child,
-    localAnchorA,
-    localAnchorB,
-    localAxisA: qRotate(qInv(ra), axis),
-    localAxisB: qRotate(qInv(rb), axis),
-    frameA: qMul(qInv(ra), frameWorld),
-    frameB: qMul(qInv(rb), frameWorld),
-    min: min * D,
-    max: max * D,
-    target: (target ?? 0) * D,
-    ...rest,
-  };
-}
 
 export function buildScene(RAPIER, opts = {}) {
   const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
@@ -205,19 +177,9 @@ export function buildScene(RAPIER, opts = {}) {
   });
 
   // --- Player --------------------------------------------------------------
-  // Capsule half-height 0.55 + radius 0.32 => centre sits 0.87 m above the floor.
   const playerStart = v3(-2.45, 0.95, -2.05);
-  const player = world.createRigidBody(
-    RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(playerStart.x, playerStart.y, playerStart.z)
-      .lockRotations()
-      .setLinearDamping(0.35)
-      .setCcdEnabled(true)
-      .setCanSleep(false)
-  );
-  const playerCollider = world.createCollider(RAPIER.ColliderDesc.capsule(0.55, 0.32).setMass(80).setFriction(0.3), player);
-  labels.set(playerCollider.handle, 'player');
-  items.push({ collider: playerCollider, shape: 'capsule', halfHeight: 0.55, radius: 0.32, color: 0x4c86cf, kind: 'player', label: 'player' });
+  const rig = createPlayerRig(RAPIER, world, items, labels, playerStart);
+  const { player, playerCollider, playerState, setPlayerVelocity, setPlayerYaw, placePlayer, resetPlayer } = rig;
 
   // --- Hinges --------------------------------------------------------------
   const door = assembly.addHinge(
@@ -248,39 +210,6 @@ export function buildScene(RAPIER, opts = {}) {
     armMount, shoulderAxis, elbowAxis, mountYawDeg: mountYaw / D, mountTiltDeg: mountTilt / D,
     playerStart, cratePos, padCenter, padAngle: padAngle / D, linkTipRadius, padHalf,
   };
-
-  let playerYaw = 0;
-  const playerState = { forward: 0, strafe: 0, sprint: false, enabled: true };
-
-  function setPlayerVelocity() {
-    if (!playerState.enabled) return;
-    const speed = playerState.sprint ? 3.4 : 1.9;
-    const cos = Math.cos(playerYaw);
-    const sin = Math.sin(playerYaw);
-    // yaw=0 faces +Z. forward moves along (sin, cos), strafe along (cos, -sin).
-    const vx = (playerState.forward * sin + playerState.strafe * cos) * speed;
-    const vz = (playerState.forward * cos - playerState.strafe * sin) * speed;
-    const v = player.linvel();
-    player.setLinvel({ x: vx, y: v.y, z: vz }, true);
-  }
-
-  function setPlayerYaw(yaw) {
-    playerYaw = yaw;
-  }
-
-  function placePlayer(pos, yaw) {
-    player.setTranslation(pos, true);
-    player.setLinvel(v3(), true);
-    player.setAngvel(v3(), true);
-    playerYaw = yaw;
-  }
-
-  function resetPlayer() {
-    placePlayer(playerStart, 0);
-    playerState.forward = 0;
-    playerState.strafe = 0;
-    playerState.enabled = true;
-  }
 
   function settle(seconds = 0.4) {
     const steps = Math.max(1, Math.round(seconds / assembly.dt));

@@ -1,0 +1,656 @@
+{
+  "format": "hinge-scene/1",
+  "id": "dock-gate-arm",
+  "title": "Loading dock: reversed gate + ceiling arm",
+  "meta": {
+    "source": "scripts/build-assets.mjs",
+    "params": {
+      "gatePivot": [
+        0.85,
+        1.15,
+        0
+      ],
+      "gateHalf": [
+        0.83,
+        1.1,
+        0.04
+      ],
+      "gateAxis": [
+        0,
+        -1,
+        0
+      ],
+      "gateLimits": [
+        -6,
+        96
+      ],
+      "bollardAngleDeg": 70,
+      "bollardRadius": 1.45,
+      "armYawDeg": -48,
+      "armDropDeg": -80,
+      "shoulderPivot": [
+        3.2,
+        2.56,
+        -1
+      ],
+      "link1Len": 0.85,
+      "link2Len": 0.75,
+      "shoulderLimits": [
+        -115,
+        25
+      ],
+      "elbowLimits": [
+        -125,
+        0
+      ],
+      "playerStart": [
+        -2,
+        0.95,
+        2.2
+      ]
+    },
+    "createdAt": "2026-11-16T06:49:55.146Z"
+  },
+  "solver": {
+    "dt": 0.008333333333333333,
+    "iterations": 12
+  },
+  "gravity": [
+    0,
+    -9.81,
+    0
+  ],
+  "cameras": {
+    "overview": {
+      "position": [
+        7.6,
+        5.4,
+        7.4
+      ],
+      "lookAt": [
+        0.9,
+        1.2,
+        -0.4
+      ]
+    },
+    "door": {
+      "position": [
+        0.2,
+        2.3,
+        4.6
+      ],
+      "lookAt": [
+        0.1,
+        1.2,
+        0
+      ]
+    },
+    "arm": {
+      "position": [
+        5.8,
+        3.6,
+        1.6
+      ],
+      "lookAt": [
+        3.2,
+        1.7,
+        -1
+      ]
+    },
+    "player": {
+      "position": [
+        -0.6,
+        2.4,
+        4.8
+      ],
+      "lookAt": [
+        -1.4,
+        1,
+        1.6
+      ]
+    }
+  },
+  "bodies": [
+    {
+      "id": "ground",
+      "type": "fixed",
+      "colliders": [
+        {
+          "shape": "cuboid",
+          "half": [
+            8,
+            0.1,
+            8
+          ],
+          "translation": [
+            0,
+            -0.1,
+            0
+          ],
+          "friction": 0.9,
+          "kind": "ground",
+          "color": 3752525,
+          "label": "ground"
+        }
+      ]
+    },
+    {
+      "id": "frame",
+      "type": "fixed",
+      "colliders": [
+        {
+          "shape": "cuboid",
+          "half": [
+            0.1,
+            1.2,
+            0.12
+          ],
+          "translation": [
+            -0.95,
+            1.2,
+            0
+          ],
+          "friction": 0.8,
+          "kind": "wall",
+          "color": 9278364,
+          "label": "gate post"
+        },
+        {
+          "shape": "cuboid",
+          "half": [
+            0.1,
+            1.2,
+            0.12
+          ],
+          "translation": [
+            0.95,
+            1.2,
+            0
+          ],
+          "friction": 0.8,
+          "kind": "wall",
+          "color": 9278364,
+          "label": "gate post"
+        },
+        {
+          "shape": "cuboid",
+          "half": [
+            1.05,
+            0.12,
+            0.12
+          ],
+          "translation": [
+            0,
+            2.42,
+            0
+          ],
+          "friction": 0.8,
+          "kind": "wall",
+          "color": 9278364,
+          "label": "lintel"
+        },
+        {
+          "shape": "cuboid",
+          "half": [
+            1.5,
+            1.2,
+            0.09
+          ],
+          "translation": [
+            -2.55,
+            1.2,
+            0
+          ],
+          "friction": 0.8,
+          "kind": "wall",
+          "color": 8225676,
+          "label": "wall wing"
+        },
+        {
+          "shape": "cuboid",
+          "half": [
+            1.5,
+            1.2,
+            0.09
+          ],
+          "translation": [
+            2.55,
+            1.2,
+            0
+          ],
+          "friction": 0.8,
+          "kind": "wall",
+          "color": 8225676,
+          "label": "wall wing"
+        }
+      ]
+    },
+    {
+      "id": "gate",
+      "type": "dynamic",
+      "translation": [
+        0,
+        1.15,
+        0
+      ],
+      "angularDamping": 0.25,
+      "colliders": [
+        {
+          "shape": "cuboid",
+          "half": [
+            0.83,
+            1.1,
+            0.04
+          ],
+          "density": 140,
+          "friction": 0.55,
+          "kind": "door",
+          "color": 8366281,
+          "edge": 4020852,
+          "label": "gate panel"
+        },
+        {
+          "shape": "cuboid",
+          "half": [
+            0.03,
+            0.075,
+            0.032
+          ],
+          "translation": [
+            -0.62,
+            -0.2,
+            -0.085
+          ],
+          "density": 400,
+          "friction": 0.4,
+          "kind": "handle",
+          "color": 14278373,
+          "label": "gate handle"
+        },
+        {
+          "shape": "cuboid",
+          "half": [
+            0.05,
+            0.06,
+            0.012
+          ],
+          "translation": [
+            -0.62,
+            -0.2,
+            -0.052
+          ],
+          "density": 300,
+          "kind": "handle",
+          "color": 9278620,
+          "label": "gate handle"
+        }
+      ]
+    },
+    {
+      "id": "bollard",
+      "type": "fixed",
+      "colliders": [
+        {
+          "shape": "cuboid",
+          "half": [
+            0.09,
+            0.5,
+            0.09
+          ],
+          "translation": [
+            0.3540707921777802,
+            0.5,
+            -1.362554300139567
+          ],
+          "friction": 0.7,
+          "kind": "obstacle",
+          "color": 15770175,
+          "label": "bollard"
+        }
+      ]
+    },
+    {
+      "id": "gantry",
+      "type": "fixed",
+      "colliders": [
+        {
+          "shape": "cuboid",
+          "half": [
+            1.1,
+            0.06,
+            0.08
+          ],
+          "translation": [
+            3.2,
+            2.66,
+            -1
+          ],
+          "friction": 0.8,
+          "kind": "static",
+          "color": 4871520,
+          "label": "gantry rail"
+        },
+        {
+          "shape": "cuboid",
+          "half": [
+            0.05,
+            1.3,
+            0.05
+          ],
+          "translation": [
+            2.15,
+            1.3,
+            -1
+          ],
+          "friction": 0.8,
+          "kind": "static",
+          "color": 4344920,
+          "label": "gantry leg"
+        },
+        {
+          "shape": "cuboid",
+          "half": [
+            0.05,
+            1.3,
+            0.05
+          ],
+          "translation": [
+            4.25,
+            1.3,
+            -1
+          ],
+          "friction": 0.8,
+          "kind": "static",
+          "color": 4344920,
+          "label": "gantry leg"
+        }
+      ]
+    },
+    {
+      "id": "link1",
+      "type": "dynamic",
+      "translation": [
+        3.2493821569265386,
+        2.1414567049698117,
+        -0.9451555585081276
+      ],
+      "rotation": [
+        0.2614452745746207,
+        -0.3115783452410839,
+        -0.587215701058083,
+        0.6998164213636981
+      ],
+      "colliders": [
+        {
+          "shape": "cuboid",
+          "half": [
+            0.425,
+            0.065,
+            0.05
+          ],
+          "density": 2300,
+          "friction": 0.5,
+          "kind": "arm",
+          "color": 5877974,
+          "edge": 2780042,
+          "label": "upper link"
+        }
+      ]
+    },
+    {
+      "id": "link2",
+      "type": "dynamic",
+      "translation": [
+        3.342336805258846,
+        1.3536105025600453,
+        -0.8419189627587207
+      ],
+      "rotation": [
+        0.2614452745746207,
+        -0.3115783452410839,
+        -0.587215701058083,
+        0.6998164213636981
+      ],
+      "colliders": [
+        {
+          "shape": "cuboid",
+          "half": [
+            0.375,
+            0.055,
+            0.045
+          ],
+          "density": 2000,
+          "friction": 0.5,
+          "kind": "arm",
+          "color": 4165560,
+          "edge": 2315890,
+          "label": "fore link"
+        },
+        {
+          "shape": "cuboid",
+          "half": [
+            0.1,
+            0.1,
+            0.1
+          ],
+          "translation": [
+            0.475,
+            0,
+            0
+          ],
+          "density": 1500,
+          "friction": 0.6,
+          "kind": "arm",
+          "color": 10466504,
+          "label": "tool head"
+        },
+        {
+          "shape": "cuboid",
+          "half": [
+            0.025,
+            0.06,
+            0.06
+          ],
+          "translation": [
+            0.595,
+            0,
+            0
+          ],
+          "density": 1200,
+          "kind": "arm",
+          "color": 5990003,
+          "label": "tool tip"
+        }
+      ]
+    },
+    {
+      "id": "pallet",
+      "type": "fixed",
+      "colliders": [
+        {
+          "shape": "cuboid",
+          "half": [
+            0.5,
+            0.07,
+            0.4
+          ],
+          "translation": [
+            -1.9,
+            0.07,
+            -1.1
+          ],
+          "friction": 0.8,
+          "kind": "static",
+          "color": 9071426,
+          "label": "pallet"
+        },
+        {
+          "shape": "cuboid",
+          "half": [
+            0.34,
+            0.26,
+            0.3
+          ],
+          "translation": [
+            -1.9,
+            0.4,
+            -1.1
+          ],
+          "friction": 0.75,
+          "kind": "obstacle",
+          "color": 10120508,
+          "edge": 6571807,
+          "label": "crate"
+        }
+      ]
+    }
+  ],
+  "hinges": [
+    {
+      "id": "gate",
+      "label": "Dock gate",
+      "group": "door",
+      "parent": "frame",
+      "child": "gate",
+      "pivot": [
+        0.85,
+        1.15,
+        0
+      ],
+      "axis": [
+        0,
+        -1,
+        0
+      ],
+      "minDeg": -6,
+      "maxDeg": 96,
+      "targetDeg": 0,
+      "motor": {
+        "stiffness": 90,
+        "damping": 14,
+        "maxForce": 900
+      }
+    },
+    {
+      "id": "shoulder",
+      "label": "Shoulder",
+      "group": "arm",
+      "parent": "gantry",
+      "child": "link1",
+      "pivot": [
+        3.2,
+        2.56,
+        -1
+      ],
+      "axis": [
+        -0.7431448254773942,
+        0,
+        0.6691306063588582
+      ],
+      "minDeg": -115,
+      "maxDeg": 25,
+      "targetDeg": 0,
+      "motor": {
+        "stiffness": 1800,
+        "damping": 150,
+        "maxForce": 9000
+      }
+    },
+    {
+      "id": "elbow",
+      "label": "Elbow",
+      "group": "arm",
+      "parent": "link1",
+      "child": "link2",
+      "pivot": [
+        3.2987643138530767,
+        1.7229134099396233,
+        -0.8903111170162552
+      ],
+      "axis": [
+        -0.7431448254773942,
+        0,
+        0.6691306063588582
+      ],
+      "minDeg": -125,
+      "maxDeg": 0,
+      "targetDeg": 0,
+      "motor": {
+        "stiffness": 1400,
+        "damping": 110,
+        "maxForce": 6000
+      }
+    }
+  ],
+  "player": {
+    "start": [
+      -2,
+      0.95,
+      2.2
+    ]
+  },
+  "script": [
+    {
+      "t": 0.2,
+      "op": "setTarget",
+      "joint": "gate",
+      "deg": 96
+    },
+    {
+      "t": 3.4,
+      "op": "setTarget",
+      "joint": "gate",
+      "deg": -6
+    },
+    {
+      "t": 6,
+      "op": "setTarget",
+      "joint": "gate",
+      "deg": 0
+    },
+    {
+      "t": 7,
+      "op": "setTarget",
+      "joint": "shoulder",
+      "deg": -115
+    },
+    {
+      "t": 9.5,
+      "op": "setTarget",
+      "joint": "elbow",
+      "deg": -100
+    },
+    {
+      "t": 11,
+      "op": "setTarget",
+      "joint": "elbow",
+      "deg": -125
+    },
+    {
+      "t": 13,
+      "op": "setTarget",
+      "joint": "shoulder",
+      "deg": -40
+    },
+    {
+      "t": 13,
+      "op": "setTarget",
+      "joint": "elbow",
+      "deg": -60
+    },
+    {
+      "t": 15,
+      "op": "setLimits",
+      "joint": "elbow",
+      "minDeg": -100,
+      "maxDeg": -5
+    },
+    {
+      "t": 15.1,
+      "op": "setTarget",
+      "joint": "elbow",
+      "deg": -100
+    }
+  ],
+  "scriptDuration": 17.5
+}

@@ -27,22 +27,45 @@ export class Interaction {
 
   _bind() {
     const el = this.renderer.domElement;
-    el.addEventListener('pointerdown', (e) => this._onDown(e));
-    el.addEventListener('pointermove', (e) => this._onMove(e));
-    window.addEventListener('pointerup', () => this._onUp());
-    el.addEventListener('contextmenu', (e) => e.preventDefault());
     // Clicking the viewport must return keyboard focus from the panel inputs,
     // otherwise WASD silently stops driving the player after editing a field.
-    el.addEventListener('pointerdown', () => el.focus({ preventScroll: true }));
-
-    window.addEventListener('keydown', (e) => {
+    this._onPointerDown = (e) => {
+      el.focus({ preventScroll: true });
+      this._onDown(e);
+    };
+    this._onPointerMove = (e) => this._onMove(e);
+    this._onPointerUp = () => this._onUp();
+    this._onContextMenu = (e) => e.preventDefault();
+    this._onKeyDown = (e) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
       this.keys.add(e.code);
-      if (e.code === 'KeyR') this.scene.resetPlayer();
-      if (e.code === 'KeyF') this.ui.setActive('door');
-    });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => this.keys.clear());
+      if (e.code === 'KeyR') this.scene.resetPlayer?.();
+      if (e.code === 'KeyF') {
+        const door = this.assembly.hinges.find((h) => h.group === 'door') ?? this.assembly.hinges[0];
+        if (door) this.ui.setActive(door.id);
+      }
+    };
+    this._onKeyUp = (e) => this.keys.delete(e.code);
+    this._onBlur = () => this.keys.clear();
+
+    el.addEventListener('pointerdown', this._onPointerDown);
+    el.addEventListener('pointermove', this._onPointerMove);
+    window.addEventListener('pointerup', this._onPointerUp);
+    el.addEventListener('contextmenu', this._onContextMenu);
+    window.addEventListener('keydown', this._onKeyDown);
+    window.addEventListener('keyup', this._onKeyUp);
+    window.addEventListener('blur', this._onBlur);
+  }
+
+  dispose() {
+    const el = this.renderer.domElement;
+    el.removeEventListener('pointerdown', this._onPointerDown);
+    el.removeEventListener('pointermove', this._onPointerMove);
+    window.removeEventListener('pointerup', this._onPointerUp);
+    el.removeEventListener('contextmenu', this._onContextMenu);
+    window.removeEventListener('keydown', this._onKeyDown);
+    window.removeEventListener('keyup', this._onKeyUp);
+    window.removeEventListener('blur', this._onBlur);
   }
 
   _setPointer(e) {
@@ -158,6 +181,7 @@ export class Interaction {
   /** Per-frame keyboard drive for the player body. */
   updatePlayer() {
     const st = this.scene.playerState;
+    if (!st || !this.scene.player) return;
     let forward = 0;
     let strafe = 0;
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) forward += 1;

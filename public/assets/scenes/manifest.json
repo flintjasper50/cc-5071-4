@@ -1,0 +1,16 @@
+{
+  "scenes": [
+    {
+      "id": "dock-gate-arm",
+      "title": "Loading dock: reversed gate + ceiling arm",
+      "url": "/assets/scenes/dock-gate-arm.json",
+      "trace": "/assets/scenes/dock-gate-arm.trace.json",
+      "hasScript": true,
+      "joints": [
+        "gate",
+        "shoulder",
+        "elbow"
+      ]
+    }
+  ]
+}

@@ -1,5 +1,15 @@
 import * as THREE from 'three';
 
+const DEFAULT_CAMERAS = {
+  overview: { position: [7.0, 5.0, -7.8], lookAt: [0.6, 1.1, -0.5] },
+  door: { position: [-0.4, 2.6, 4.4], lookAt: [-0.35, 1.25, 0] },
+  arm: { position: [5.9, 3.1, -4.3], lookAt: [3.3, 1.3, -1.65] },
+  player: { position: [0.9, 2.2, -4.0], lookAt: [-1.3, 1.0, -1.1] },
+};
+
+const HELPER_ID_COLORS = { door: 0x5ad1a5, shoulder: 0x7fb0ff, elbow: 0xffc861 };
+const HELPER_PALETTE = [0x5ad1a5, 0x7fb0ff, 0xffc861, 0xff8fb5, 0x9fe870];
+
 /**
  * Builds meshes whose transforms are copied from the Rapier colliders each
  * frame. Rendering never owns a transform: it mirrors the collision shape, so
@@ -10,6 +20,9 @@ export class SceneView {
     this.container = container;
     this.scene = scene;
     this.RAPIER = RAPIER;
+    // Scene assets carry their own camera presets; the built-in scene falls
+    // back to these defaults.
+    this.cameras = { ...DEFAULT_CAMERAS, ...(scene.meta?.cameras ?? {}) };
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setClearColor(0x10151c, 1);
@@ -123,10 +136,10 @@ export class SceneView {
     const ringGeo = new THREE.TorusGeometry(0.16, 0.012, 8, 40);
     const axisGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.5, 8);
     axisGeo.rotateZ(Math.PI / 2); // cylinder along +X, matching the joint frame's X axis
-    const colors = { door: 0x5ad1a5, shoulder: 0x7fb0ff, elbow: 0xffc861 };
-    for (const h of this.scene.assembly.hinges) {
+    this.scene.assembly.hinges.forEach((h, i) => {
+      const color = HELPER_ID_COLORS[h.id] ?? HELPER_PALETTE[i % HELPER_PALETTE.length];
       const g = new THREE.Group();
-      const mat = new THREE.MeshBasicMaterial({ color: colors[h.id] ?? 0xffffff });
+      const mat = new THREE.MeshBasicMaterial({ color });
       const ring = new THREE.Mesh(ringGeo, mat);
       const axis = new THREE.Mesh(axisGeo, mat);
       ring.renderOrder = 3;
@@ -135,7 +148,7 @@ export class SceneView {
       g.add(axis);
       this.helperGroup.add(g);
       this._hingeHelpers.set(h.id, { group: g, ring, axis, hinge: h });
-    }
+    });
 
     this._limitArcs = new Map();
     for (const h of this.scene.assembly.hinges) {
@@ -300,18 +313,20 @@ export class SceneView {
   }
 
   setCameraPreset(name) {
-    if (name === 'door') {
-      this.camera.position.set(-0.4, 2.6, 4.4);
-      this.camera.lookAt(-0.35, 1.25, 0);
-    } else if (name === 'arm') {
-      this.camera.position.set(5.9, 3.1, -4.3);
-      this.camera.lookAt(3.3, 1.3, -1.65);
-    } else if (name === 'player') {
-      this.camera.position.set(0.9, 2.2, -4.0);
-      this.camera.lookAt(-1.3, 1.0, -1.1);
-    } else {
-      this.camera.position.set(7.0, 5.0, -7.8);
-      this.camera.lookAt(0.6, 1.1, -0.5);
-    }
+    const p = this.cameras[name] ?? this.cameras.overview;
+    this.camera.position.set(p.position[0], p.position[1], p.position[2]);
+    this.camera.lookAt(p.lookAt[0], p.lookAt[1], p.lookAt[2]);
+  }
+
+  dispose() {
+    this.resizeObserver.disconnect();
+    this.threeScene.traverse((o) => {
+      o.geometry?.dispose?.();
+      if (o.material) {
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose();
+      }
+    });
+    this.renderer.dispose();
+    this.renderer.domElement.remove();
   }
 }
